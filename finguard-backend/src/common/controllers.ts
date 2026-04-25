@@ -16,12 +16,14 @@ import { ReportsService } from 'src/modules/reports/reports.service'
 import { DatasetAnalysisService } from 'src/modules/dataset/dataset.service'
 import { ResponseIntercaptor } from './interceptors/response'
 
+// Валідація вхідних даних: трансформація типів, відкидання зайвих полів
 const PIPES = new ValidationPipe({
     transform: true,
     whitelist: true,
     forbidNonWhitelisted: true,
 })
 
+// REST API для транзакцій: /api/transactions
 @UseInterceptors(ResponseIntercaptor)
 @UsePipes(PIPES)
 @Controller('transactions')
@@ -57,6 +59,7 @@ export class TransactionController{
     }
 }
 
+// REST API для правил виявлення шахрайства: /api/rules
 @UseInterceptors(ResponseIntercaptor)
 @UsePipes(PIPES)
 @Controller('rules')
@@ -96,6 +99,7 @@ export class RuleContoller {
     }
 }
 
+// REST API для пакетного аналізу датасету ULB: /api/dataset
 @UseInterceptors(ResponseIntercaptor)
 @UsePipes(PIPES)
 @Controller('dataset')
@@ -109,6 +113,7 @@ export class DatasetController {
     }
 }
 
+// REST API для звітів: /api/reports
 @UseInterceptors(ResponseIntercaptor)
 @UsePipes(PIPES)
 @Controller('reports')

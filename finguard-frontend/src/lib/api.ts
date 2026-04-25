@@ -14,10 +14,12 @@ import type { RuleResponseDto } from '../../../finguard-backend/src/common/dto/r
 import type { GenerateReportDto } from '../../../finguard-backend/src/common/dto/report'
 
 
+// Базова URL бекенду; можна перевизначити через змінну оточення
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
 // ─── Error class ──────────────────────────────────────────────────────────────
 
+// Власний клас помилки з кодом для зручної обробки на UI
 export class ApiClientError extends Error {
 
 readonly code: string;
@@ -34,6 +36,7 @@ constructor(
 
 // ─── Generic fetcher ─────────────────────────────────────────────────────────
 
+// Єдина точка HTTP-запитів: розгортає { success, data } і кидає ApiClientError при помилці
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
 const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -51,6 +54,7 @@ if (!isApiSuccess(wrapped)) {
 return wrapped.data;
 }
 
+// Будує рядок query-параметрів, ігноруючи undefined/null значення
 const qs = (q?: object): string => {
 if (!q) return '';
 const p = new URLSearchParams(

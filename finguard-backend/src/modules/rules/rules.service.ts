@@ -8,6 +8,7 @@ import { CreateRuleDto } from 'src/common/dto/createRule';
 import { UpdateRulesDto } from 'src/common/dto/update';
 import { RuleResponseDto } from 'src/common/dto/ruleResponse';
 
+// Сервіс управління правилами виявлення шахрайства
 @Injectable()
 export class RulesService {
     constructor(
@@ -15,6 +16,7 @@ export class RulesService {
         private readonly repo: Repository<RuleEntity>
     ) {}
 
+    // Перетворює сутність БД на DTO для відповіді API
     private toDto(r: RuleEntity): RuleResponseDto{
         return {
             id: r.id,
@@ -36,6 +38,7 @@ export class RulesService {
         return this.toDto(await this.repo.save(rule))
     }
 
+    // Повертає правила відсортовані за пріоритетом (менше число = вищий пріоритет)
     async findAll(): Promise<RuleResponseDto[]> {
         const rules = await this.repo.find({ order: { priority: 'ASC' }})
         return rules.map((r) => this.toDto(r))
@@ -53,6 +56,7 @@ export class RulesService {
         return this.toDto(await this.repo.save(Object.assign(rule, dto)))
     }
 
+    // Вмикає/вимикає правило без повного оновлення об'єкта
     async toggle(id: RuleId): Promise<RuleResponseDto>{
         const rule = await this.repo.findOne({ where: { id} })
         if(!rule) throw new NotFoundException(`Rule ${id} not found`)

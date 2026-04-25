@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { v4 as uuidv4 } from 'uuid'
 
-import { 
+import {
     mkAnalysisId, mkRiskScore, mkConfidence, mkModelVersion,
     scoreToRiskLevel, type AnyTransaction, LegitimacyDecision,
     type AiAnalysisResult, type Verdict, type RiskLevel,
@@ -15,6 +15,7 @@ import { Repository } from 'typeorm';
 import { AnalysisEntity } from 'src/common/interceptors/entities/analysis';
 import type { AnalysisResponseDto } from 'src/common/dto/responseAnalysis';
 
+// Очікувана структура JSON-відповіді від Claude
 type ClaudeSchema = {
     readonly riskScore: number
     readonly confidence: number
@@ -38,6 +39,7 @@ type ClaudeSchema = {
     } | null
 }
 
+// Перевіряє, що Claude повернув коректну структуру (захист від hallucination)
 function isvalidClaudeSchema(data: unknown): data is ClaudeSchema {
     if(typeof data != 'object' || data === null) return false
     const d = data as Record<string, unknown>
@@ -52,6 +54,7 @@ function isvalidClaudeSchema(data: unknown): data is ClaudeSchema {
         Array.isArray(d['recommendations'])
     )
 }
+// Сервіс AI-аналізу: відправляє транзакцію до Claude і зберігає результат
 @Injectable()
 export class AiAnalysisService {
     private readonly logger = new Logger(AiAnalysisService.name)
@@ -68,12 +71,14 @@ export class AiAnalysisService {
         })
     }
 
+    // Головний метод: запускає правила → Claude → зберігає в БД → повертає результат
     async analyze(
         transaction: AnyTransaction,
         activeRules: ReadonlyArray<RuleDefinition>
     ): Promise<AiAnalysisResult>{
         const startMs = Date.now()
 
+        // Спочатку правила дають попередню оцінку ризику (delta ±50)
         const ruleDelta = this.applyRules(transaction, activeRules)
         const message = await this.client.messages.create({
             model: 'claude-haiku-4-5',
@@ -86,9 +91,10 @@ export class AiAnalysisService {
             .filter((b) => b.type === 'text')
             .map((b) => b.text)
             .join('');
-        
+
         const parsed = this.parseResponse(rawText)
 
+        // Фінальний скор = оцінка Claude + поправка від правил
         const finalScore = mkRiskScore(parsed.riskScore + ruleDelta)
         const riskLevel = scoreToRiskLevel(finalScore)
         const decision = this.buildDecision(parsed, finalScore, riskLevel)
@@ -154,6 +160,7 @@ export class AiAnalysisService {
         }
     }
 
+    // Перевіряє активні правила та повертає сумарну поправку до ризик-скору (від -50 до +50)
     private applyRules(
         tx: AnyTransaction,
         rules: ReadonlyArray<RuleDefinition>,
@@ -162,6 +169,7 @@ export class AiAnalysisService {
         const txFlat = tx as unknown as Record<string, unknown>
         for(const rule of rules){
             if(!rule.isActive) continue
+            // Кожна умова правила перевіряється окремо
             const results = rule.conditions.map((c) => {
                 const val = txFlat[c.field]
                 if(val === undefined) return false
@@ -180,6 +188,7 @@ export class AiAnalysisService {
                 }
             })
 
+            // AND — всі умови мають бути true; OR — хоча б одна
             const triggered = rule.conditionLogic === 'AND'
                 ? results.every(Boolean)
                 : results.some(Boolean)
@@ -193,29 +202,33 @@ export class AiAnalysisService {
         return Math.max(-50, Math.min(50, delta))
     }
 
+    // Будує фінальне рішення: вибирає суворіший з двох вердиктів — Claude та порогового
     private buildDecision(
         parsed: ClaudeSchema,
         score: number,
         riskLevel: RiskLevel,
-    ): LegitimacyDecision { 
+    ): LegitimacyDecision {
         const reviewDeadlineMs = parsed.reviewDeadlineHours
             ? Date.now() + parsed.reviewDeadlineHours * 3_600_000
             : null
-        
+
         const primarySignal = parsed.signals[0] ?? null
         const toSignal = (s: ClaudeSchema['blockedReason']): FraudSignal | null => s ? {...s, weight: mkConfidence(s.weight) } : null
-        
-        const effectiveVerdict: Verdict = 
+
+        // Пороговий вердикт на основі числового скору
+        const effectiveVerdict: Verdict =
             score <= 30 ? 'approved'
             : score <= 60 ? 'approved'
             : score <= 85 ? 'approved_with_review'
             : 'blocked'
 
+        // Числовий порядок для порівняння суворості вердиктів
         const ORDER: Record<Verdict, number> = {
             approved: 0, approved_with_review: 1, pending_manual_review: 2, blocked: 3
         }
 
-        const finalVerdict: Verdict = 
+        // Беремо суворіший вердикт — Claude або пороговий
+        const finalVerdict: Verdict =
             ORDER[parsed.verdict] >= ORDER[effectiveVerdict]
                 ? parsed.verdict
                 : effectiveVerdict
@@ -318,6 +331,7 @@ export class AiAnalysisService {
         Analyze for fraud. Consider: amount anomalies, channel risk, authentication signals (3DS, PIN, CVV), behavioral patterns, rule triggers. Provide your JSON analysis. All text in Ukrainian.`;
     }
 
+    // Витягує JSON з відповіді Claude (markdown-блок або голий об'єкт)
     private parseResponse(raw: string): ClaudeSchema{
         const match = raw.match(/```json\s*([\s\S]*?)\s*```/) ??
         raw.match(/\{[\s\S]*\}/)
@@ -338,6 +352,7 @@ export class AiAnalysisService {
         }
     }
 
+    // Безпечний fallback при помилці парсингу — транзакція йде на ручну перевірку
     private fullbackSchema(): ClaudeSchema {
         return {
             riskScore: 50,

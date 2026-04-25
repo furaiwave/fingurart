@@ -13,6 +13,7 @@ import { AnalysisEntity } from 'src/common/interceptors/entities/analysis';
 import { RuleEntity } from 'src/common/interceptors/entities/rules';
 import { mkTransactionId, mkAmountMinor, type TransactionId, type AnyTransaction, type PaginatedResponse } from 'shared/types';
 
+// Сервіс транзакцій: CRUD + запуск AI-аналізу
 @Injectable()
 export class TransactionsService {
     private readonly logger = new Logger(TransactionEntity.name)
@@ -43,6 +44,7 @@ export class TransactionsService {
         }
     }
 
+    // Конвертує сутність БД у payload для AI-сервісу
     private entityToPayLoad(tx: TransactionEntity): AnyTransaction {
         return {
             transactionId: tx.id,
@@ -77,6 +79,7 @@ export class TransactionsService {
         return this.toDto(saved, null)
     }
 
+    // Повертає сторінку транзакцій з фільтрами та останнім аналізом для кожної
     async findAll(q: TransactionQueryDto): Promise<PaginatedResponse<TransactionResponseDto>>{
         const page = q.page ?? 1
         const limit = q.limit ?? 20
@@ -101,6 +104,7 @@ export class TransactionsService {
         const [items, total] = await qb.getManyAndCount()
 
         const ids = items.map((t) => t.id)
+        // Завантажуємо аналізи одним запитом і вибираємо останній для кожної транзакції
         const analyses = ids.length > 0
             ? await this.analysisRepo
                 .createQueryBuilder('a')
@@ -132,11 +136,13 @@ export class TransactionsService {
         return this.toDto(tx, a ?? null)
     }
 
+    // Запускає AI-аналіз транзакції; блокує повторний запуск якщо вже йде аналіз
     async analyze(id: TransactionId): Promise<AnalysisResponseDto>{
         const tx = await this.txRepo.findOne({ where: { id } })
         if(!tx) throw new NotFoundException(`Transaction ${id} not found `)
         if(tx.status === 'analyzing') throw new BadRequestException('Already analyzing')
 
+        // Одразу ставимо статус, щоб уникнути паралельного запуску
         await this.txRepo.update(id, { status: 'analyzing' })
 
         const rules = await this.ruleRepo.find({
@@ -158,7 +164,8 @@ export class TransactionsService {
         try{
             const result = await this.aiService.analyze(payload, ruleDefs)
 
-            const newStatus = result.decision.verdict === 'approved' ? 'approved' 
+            // Маппінг вердикту Claude на статус транзакції в БД
+            const newStatus = result.decision.verdict === 'approved' ? 'approved'
                 : result.decision.verdict === 'approved_with_review' ? 'approved_with_review'
                 : result.decision.verdict === 'blocked' ? 'blocked' : 'manual_review'
 
@@ -167,12 +174,14 @@ export class TransactionsService {
             const entity = await this.analysisRepo.findOne({ where: { id: result.analysisId }})
             return this.aiService.toResponseDto(entity!)
         } catch (err) {
+            // При помилці повертаємо статус 'pending', щоб дозволити повторний аналіз
             await this.txRepo.update(id, { status: 'pending' })
             this.logger.error(`Analysus failed for tx ${id}`, err)
             throw err
         }
     }
 
+    // Спочатку видаляємо пов'язані аналізи, потім саму транзакцію
     async remove(id: TransactionId): Promise<void>{
         const tx = await this.txRepo.findOne({ where: { id } })
         if(!tx) throw new NotFoundException(`Transaction ${id} not found`)
