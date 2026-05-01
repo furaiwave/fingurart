@@ -38,20 +38,32 @@ constructor(
 
 // Єдина точка HTTP-запитів: розгортає { success, data } і кидає ApiClientError при помилці
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+const merged: RequestInit = {
     ...init,
-});
+    headers: { 'Content-Type': 'application/json', ...((init?.headers ?? {}) as Record<string, string>) },
+};
+const res = await fetch(`${BASE}${path}`, merged);
 
-// unknown — raw JSON, narrowed immediately by isApiSuccess
-const json: unknown = await res.json();
-const wrapped = json as ApiResponse<T>;
-
-if (!isApiSuccess(wrapped)) {
-    throw new ApiClientError(wrapped.error.code, wrapped.error.message);
+let json: unknown;
+try {
+    json = await res.json();
+} catch {
+    throw new ApiClientError(`HTTP_${res.status}`, `Non-JSON response (HTTP ${res.status})`);
 }
 
-return wrapped.data;
+const wrapped = json as ApiResponse<T>;
+if (isApiSuccess(wrapped)) return wrapped.data;
+
+const errCode = (wrapped as { error?: { code?: string } })?.error?.code;
+const errMessage = (wrapped as { error?: { message?: string } })?.error?.message;
+if (errMessage) throw new ApiClientError(errCode ?? `HTTP_${res.status}`, errMessage);
+
+const bare = json as { message?: string | string[]; detail?: string };
+const fallback =
+    (Array.isArray(bare?.message) ? bare.message.join('; ') : bare?.message) ??
+    bare?.detail ??
+    `Request failed (HTTP ${res.status})`;
+throw new ApiClientError(`HTTP_${res.status}`, fallback);
 }
 
 // Будує рядок query-параметрів, ігноруючи undefined/null значення

@@ -38,8 +38,14 @@ import {
   useDeleteTransaction, useRuleList, useCreateRule, useToggleRule,
   useDeleteRule, useReportList, useGenerateReport,
 } from './hooks';
+<<<<<<< Updated upstream
 import { reportsApi, datasetApi } from './lib/api';
 import type { UlbRowPayload, UlbAnalysisResult, ReportResponse } from './lib/api';
+=======
+import { reportsApi } from './lib/api';
+import { Dashboard } from './components/Dashboard';
+import { Analyzer } from './components/Analyzer';
+>>>>>>> Stashed changes
 import { mkTransactionId, mkRuleId, mkReportId } from '../../finguard-backend/shared/types';
 import type { TransactionResponseDto } from '../../finguard-backend/src/common/dto/transResponse';
 import type { AnalysisResponseDto } from '../../finguard-backend/src/common/dto/responseAnalysis';
@@ -56,17 +62,30 @@ import type {
 // ─── CONFIG MAPS ─────────────────────────────────────────────────────────────
 
 const VERDICT_CFG = {
+<<<<<<< Updated upstream
   approved:              { label: 'Схвалено',          bg: 'bg-emerald-950', text: 'text-emerald-300', border: 'border-emerald-800', dot: 'bg-emerald-400' },
   approved_with_review:  { label: 'Перевірка',         bg: 'bg-amber-950',   text: 'text-amber-300',   border: 'border-amber-800',   dot: 'bg-amber-400'   },
   blocked:               { label: 'Заблоковано',       bg: 'bg-red-950',     text: 'text-red-300',     border: 'border-red-800',     dot: 'bg-red-400'     },
   pending_manual_review: { label: 'Очікує',            bg: 'bg-indigo-950',  text: 'text-indigo-300',  border: 'border-indigo-800',  dot: 'bg-indigo-400'  },
+=======
+  approved:              { label: 'Підтверджено', bg: 'bg-emerald-950', text: 'text-emerald-300', border: 'border-emerald-800', dot: 'bg-emerald-400' },
+  approved_with_review:  { label: 'Огляд',        bg: 'bg-amber-950',   text: 'text-amber-300',   border: 'border-amber-800',   dot: 'bg-amber-400'   },
+  blocked:               { label: 'Заблоковано',  bg: 'bg-red-950',     text: 'text-red-300',     border: 'border-red-800',     dot: 'bg-red-400'     },
+  pending_manual_review: { label: 'Очікує',       bg: 'bg-indigo-950',  text: 'text-indigo-300',  border: 'border-indigo-800',  dot: 'bg-indigo-400'  },
+>>>>>>> Stashed changes
 } as const satisfies Record<LegitimacyDecision['verdict'], { label: string; bg: string; text: string; border: string; dot: string }>;
 
 const RISK_CFG = {
   low:      { label: 'Низький',    color: 'text-emerald-400', bar: 'bg-emerald-500' },
+<<<<<<< Updated upstream
   medium:   { label: 'Середній',  color: 'text-amber-400',   bar: 'bg-amber-500'   },
   high:     { label: 'Високий',   color: 'text-orange-400',  bar: 'bg-orange-500'  },
   critical: { label: 'Критичний', color: 'text-red-400',     bar: 'bg-red-500'     },
+=======
+  medium:   { label: 'Середній',   color: 'text-amber-400',   bar: 'bg-amber-500'   },
+  high:     { label: 'Високий',    color: 'text-orange-400',  bar: 'bg-orange-500'  },
+  critical: { label: 'Критичний',  color: 'text-red-400',     bar: 'bg-red-500'     },
+>>>>>>> Stashed changes
 } as const satisfies Record<RiskLevel, { label: string; color: string; bar: string }>;
 
 const STATUS_LABELS: Record<NonNullable<TransactionResponseDto['status']>, string> = {
@@ -87,12 +106,47 @@ const STATUS_CLS: Record<NonNullable<TransactionResponseDto['status']>, string> 
   manual_review:        'bg-indigo-950 text-indigo-300 border-indigo-800',
 };
 
+const STATUS_LABEL: Record<NonNullable<TransactionResponseDto['status']>, string> = {
+  pending:              'очікує',
+  analyzing:            'аналізується',
+  approved:             'підтверджено',
+  approved_with_review: 'підтверджено з оглядом',
+  blocked:              'заблоковано',
+  manual_review:        'ручний огляд',
+};
+
+const TYPE_LABEL: Record<TransactionType, string> = {
+  payment:    'оплата',
+  transfer:   'переказ',
+  withdrawal: 'зняття',
+  deposit:    'депозит',
+  refund:     'повернення',
+  chargeback: 'чарджбек',
+};
+
+const CHANNEL_LABEL: Record<TransactionChannel, string> = {
+  card_present:     'картка (присут.)',
+  card_not_present: 'картка (відсут.)',
+  bank_transfer:    'банк. переказ',
+  crypto:           'крипто',
+  mobile_payment:   'моб. платіж',
+  atm:              'банкомат',
+};
+
 const ACTION_CLS: Record<RuleAction, string> = {
   flag:    'bg-amber-950 text-amber-300 border-amber-800',
   block:   'bg-red-950 text-red-300 border-red-800',
   review:  'bg-indigo-950 text-indigo-300 border-indigo-800',
   approve: 'bg-emerald-950 text-emerald-300 border-emerald-800',
   notify:  'bg-zinc-800 text-zinc-300 border-zinc-700',
+};
+
+const ACTION_LABEL: Record<RuleAction, string> = {
+  flag:    'позначити',
+  block:   'блокувати',
+  review:  'на огляд',
+  approve: 'підтвердити',
+  notify:  'сповістити',
 };
 
 const CHANNELS_PER_TYPE: Record<TransactionType, TransactionChannel[]> = {
@@ -110,6 +164,21 @@ const REPORT_TYPE_CLS: Record<ReportType, string> = {
   risk_distribution:   'text-amber-400',
   rule_effectiveness:  'text-purple-400',
   ai_performance:      'text-emerald-400',
+};
+
+const REPORT_TYPE_LABEL: Record<ReportType, string> = {
+  fraud_summary:       'зведення шахрайства',
+  transaction_volume:  'обсяг транзакцій',
+  risk_distribution:   'розподіл ризиків',
+  rule_effectiveness:  'ефективність правил',
+  ai_performance:      'продуктивність ШІ',
+};
+
+const PERIOD_LABEL: Record<ReportPeriod, string> = {
+  daily:   'щодня',
+  weekly:  'щотижня',
+  monthly: 'щомісяця',
+  custom:  'інтервал',
 };
 
 // ─── FORMATTERS ───────────────────────────────────────────────────────────────
@@ -161,7 +230,11 @@ function DeleteDialog({ name, onDelete }: { name: string; onDelete: () => void }
         <AlertDialogHeader>
           <AlertDialogTitle className="text-zinc-100 font-mono">Видалити?</AlertDialogTitle>
           <AlertDialogDescription className="text-zinc-400">
+<<<<<<< Updated upstream
             Видалити "{name}"? Неможливо скасувати.
+=======
+            Видалити «{name}»? Цю дію неможливо скасувати.
+>>>>>>> Stashed changes
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -240,7 +313,11 @@ function AnalysisPanel({ a }: { a: AnalysisResponseDto }) {
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'Впевненість', value: `${(a.confidence * 100).toFixed(1)}%` },
+<<<<<<< Updated upstream
             { label: 'Час',         value: `${a.processingTimeMs}ms` },
+=======
+            { label: 'Час',         value: `${a.processingTimeMs}мс` },
+>>>>>>> Stashed changes
             { label: 'Модель',      value: a.modelVersion },
           ].map(({ label, value }) => (
             <div key={label} className="bg-zinc-900 border border-zinc-800 rounded p-2">
@@ -253,7 +330,11 @@ function AnalysisPanel({ a }: { a: AnalysisResponseDto }) {
         <div className="bg-zinc-900 border border-zinc-800 rounded p-3">
           <div className="flex items-center gap-1.5 mb-2">
             <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+<<<<<<< Updated upstream
             <Mono className="uppercase tracking-wider">Аналіз Claude AI</Mono>
+=======
+            <Mono className="uppercase tracking-wider">Обґрунтування ШІ</Mono>
+>>>>>>> Stashed changes
           </div>
           <p className="text-xs text-zinc-300 leading-relaxed wrap-break-word whitespace-normal">{a.reasoning}</p>
         </div>
@@ -275,16 +356,27 @@ function AnalysisPanel({ a }: { a: AnalysisResponseDto }) {
         {a.blockedReason && (
           <div className="bg-red-950/40 border border-red-900 rounded p-2">
             <Mono className="uppercase tracking-wider text-red-500 block mb-1">Причина блокування</Mono>
+<<<<<<< Updated upstream
             <p className="text-xs text-red-300 wrap-break-word">{a.blockedReason.description}</p>
+=======
+            <p className="text-xs text-red-300">{a.blockedReason.description}</p>
+>>>>>>> Stashed changes
           </div>
         )}
       </div>
 
       {/* Right — signals */}
+<<<<<<< Updated upstream
       <div className="space-y-3 min-w-0">
         <Mono className="uppercase tracking-wider block">Сигнали шахрайства ({a.signals.length})</Mono>
         {a.signals.length ? <SignalList signals={a.signals} /> : (
           <div className="text-center py-10 text-zinc-700 font-mono text-xs">Сигналів не виявлено</div>
+=======
+      <div className="space-y-3">
+        <Mono className="uppercase tracking-wider block">Сигнали шахрайства ({a.signals.length})</Mono>
+        {a.signals.length ? <SignalList signals={a.signals} /> : (
+          <div className="text-center py-10 text-zinc-700 font-mono text-xs">Сигнали не виявлено</div>
+>>>>>>> Stashed changes
         )}
       </div>
     </div>
@@ -361,7 +453,11 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
+<<<<<<< Updated upstream
             <Field label="Сума (мінорні одиниці)">
+=======
+            <Field label="Сума (у мін. одиницях)">
+>>>>>>> Stashed changes
               <Input value={form.amountMinor} onChange={(e) => set('amountMinor', e.target.value)}
                 className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" placeholder="10000 = $100" />
             </Field>
@@ -372,15 +468,19 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
             </Field>
             <Field label="Тип">
               <Sel value={form.type} onValueChange={(v) => changeType(v as TransactionType)}>
-                {(['payment','transfer','withdrawal','deposit','refund','chargeback'] as TransactionType[]).map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {(['payment','transfer','withdrawal','deposit','refund','chargeback'] as TransactionType[]).map((t) => <SelectItem key={t} value={t}>{TYPE_LABEL[t]}</SelectItem>)}
               </Sel>
             </Field>
             <Field label="Канал">
               <Sel value={form.channel} onValueChange={(v) => set('channel', v as TransactionChannel)}>
-                {CHANNELS_PER_TYPE[form.type].map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, ' ')}</SelectItem>)}
+                {CHANNELS_PER_TYPE[form.type].map((c) => <SelectItem key={c} value={c}>{CHANNEL_LABEL[c]}</SelectItem>)}
               </Sel>
             </Field>
+<<<<<<< Updated upstream
             <Field label="IP адреса">
+=======
+            <Field label="IP-адреса">
+>>>>>>> Stashed changes
               <Input value={form.ipAddress} onChange={(e) => set('ipAddress', e.target.value)}
                 className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" />
             </Field>
@@ -393,16 +493,24 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
           {/* Dynamic channel-specific fields */}
           {form.type === 'payment' && form.channel === 'card_not_present' && (
             <div className="border-t border-zinc-800 pt-3 space-y-3">
+<<<<<<< Updated upstream
               <Mono className="uppercase tracking-wider">Поля картки (без присутності)</Mono>
+=======
+              <Mono className="uppercase tracking-wider">Поля для безкарткового платежу</Mono>
+>>>>>>> Stashed changes
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Статус 3DS">
                   <Sel value={form.threeDsStatus} onValueChange={(v) => set('threeDsStatus', v as TxForm['threeDsStatus'])}>
                     <SelectItem value="3ds_passed">Пройдено</SelectItem>
                     <SelectItem value="3ds_failed">Не пройдено</SelectItem>
+<<<<<<< Updated upstream
                     <SelectItem value="3ds_not_enrolled">Не підключено</SelectItem>
+=======
+                    <SelectItem value="3ds_not_enrolled">Не зареєстровано</SelectItem>
+>>>>>>> Stashed changes
                   </Sel>
                 </Field>
-                <Field label="Merchant ID">
+                <Field label="ID мерчанта">
                   <Input value={form.merchantId} onChange={(e) => set('merchantId', e.target.value)}
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
                 </Field>
@@ -416,15 +524,23 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
 
           {form.type === 'payment' && form.channel === 'card_present' && (
             <div className="border-t border-zinc-800 pt-3 space-y-3">
+<<<<<<< Updated upstream
               <Mono className="uppercase tracking-wider">Поля картки (з присутністю)</Mono>
+=======
+              <Mono className="uppercase tracking-wider">Поля для карткового платежу</Mono>
+>>>>>>> Stashed changes
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Terminal ID">
+                <Field label="ID термінала">
                   <Input value={form.terminalId} onChange={(e) => set('terminalId', e.target.value)}
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" />
                 </Field>
                 <div className="flex items-center gap-2 pt-5">
                   <Switch checked={form.pinVerified} onCheckedChange={(v) => set('pinVerified', v)} />
+<<<<<<< Updated upstream
                   <Label className="text-xs text-zinc-400">PIN підтверджено</Label>
+=======
+                  <Label className="text-xs text-zinc-400">PIN перевірено</Label>
+>>>>>>> Stashed changes
                 </div>
               </div>
             </div>
@@ -432,6 +548,7 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
 
           {form.type === 'transfer' && form.channel === 'bank_transfer' && (
             <div className="border-t border-zinc-800 pt-3 space-y-3">
+<<<<<<< Updated upstream
               <Mono className="uppercase tracking-wider">Поля банківського переказу</Mono>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Рахунок відправника">
@@ -439,6 +556,15 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
                 </Field>
                 <Field label="Рахунок отримувача">
+=======
+              <Mono className="uppercase tracking-wider">Поля для банківського переказу</Mono>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Рахунок-джерело">
+                  <Input value={form.sourceAccountId} onChange={(e) => set('sourceAccountId', e.target.value)}
+                    className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
+                </Field>
+                <Field label="Рахунок-отримувач">
+>>>>>>> Stashed changes
                   <Input value={form.destinationAccountId} onChange={(e) => set('destinationAccountId', e.target.value)}
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
                 </Field>
@@ -456,6 +582,7 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
 
           {form.type === 'transfer' && form.channel === 'crypto' && (
             <div className="border-t border-zinc-800 pt-3 space-y-3">
+<<<<<<< Updated upstream
               <Mono className="uppercase tracking-wider">Поля крипто переказу</Mono>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Гаманець відправника">
@@ -463,6 +590,15 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
                 </Field>
                 <Field label="Гаманець отримувача">
+=======
+              <Mono className="uppercase tracking-wider">Поля для крипто-переказу</Mono>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Гаманець-джерело">
+                  <Input value={form.sourceWallet} onChange={(e) => set('sourceWallet', e.target.value)}
+                    className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
+                </Field>
+                <Field label="Гаманець-отримувач">
+>>>>>>> Stashed changes
                   <Input value={form.destinationWallet} onChange={(e) => set('destinationWallet', e.target.value)}
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-xs" />
                 </Field>
@@ -471,7 +607,11 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
                     {(['ethereum','bitcoin','solana','polygon'] as const).map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                   </Sel>
                 </Field>
+<<<<<<< Updated upstream
                 <Field label="Комісія мережі (мінорна)">
+=======
+                <Field label="Комісія мережі">
+>>>>>>> Stashed changes
                   <Input value={form.networkFeeMinor} onChange={(e) => set('networkFeeMinor', e.target.value)}
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" />
                 </Field>
@@ -481,9 +621,15 @@ function CreateTxDialog({ onCreated }: { onCreated: () => void }) {
 
           {form.type === 'withdrawal' && form.channel === 'atm' && (
             <div className="border-t border-zinc-800 pt-3 space-y-3">
+<<<<<<< Updated upstream
               <Mono className="uppercase tracking-wider">Поля банкомату</Mono>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="ID банкомату">
+=======
+              <Mono className="uppercase tracking-wider">Поля для банкомата</Mono>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="ID банкомата">
+>>>>>>> Stashed changes
                   <Input value={form.atmId} onChange={(e) => set('atmId', e.target.value)}
                     className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" />
                 </Field>
@@ -553,18 +699,23 @@ function TxRow({ tx, onAnalyze, onDelete, isAnalyzing }: {
         <TableCell><Mono>{tx.id.slice(0, 8)}…</Mono></TableCell>
         <TableCell>
           <div className="flex flex-col gap-0.5">
-            <Badge variant="outline" className="border-zinc-700 text-zinc-300 text-xs font-mono w-fit">{tx.type}</Badge>
-            <Mono>{tx.channel.replace(/_/g, ' ')}</Mono>
+            <Badge variant="outline" className="border-zinc-700 text-zinc-300 text-xs font-mono w-fit">{TYPE_LABEL[tx.type] ?? tx.type}</Badge>
+            <Mono>{CHANNEL_LABEL[tx.channel] ?? tx.channel}</Mono>
           </div>
         </TableCell>
         <TableCell className="font-mono text-sm text-zinc-100 font-medium">
           {fmtAmount(tx.amountMinor, tx.currency)}
         </TableCell>
         <TableCell>
-          <Badge className={`text-xs border font-mono ${STATUS_CLS[tx.status]}`}>
+          <Badge className={`text-xs border font-mono ${STATUS_CLS[tx.status] ?? 'bg-zinc-900 text-zinc-400 border-zinc-700'}`}>
             {tx.status === 'analyzing'
+<<<<<<< Updated upstream
               ? <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />{STATUS_LABELS.analyzing}</span>
               : STATUS_LABELS[tx.status]}
+=======
+              ? <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping" />аналізується</span>
+              : STATUS_LABEL[tx.status] ?? tx.status}
+>>>>>>> Stashed changes
           </Badge>
         </TableCell>
         <TableCell>
@@ -587,7 +738,11 @@ function TxRow({ tx, onAnalyze, onDelete, isAnalyzing }: {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="left" className="bg-zinc-900 border-zinc-700 text-zinc-300 text-xs">
+<<<<<<< Updated upstream
                   Запустити аналіз Claude AI
+=======
+                  Запустити аналіз
+>>>>>>> Stashed changes
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -599,7 +754,11 @@ function TxRow({ tx, onAnalyze, onDelete, isAnalyzing }: {
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-zinc-100 font-mono">Видалити транзакцію?</AlertDialogTitle>
                   <AlertDialogDescription className="text-zinc-400">
+<<<<<<< Updated upstream
                     Видаляє <Mono className="text-zinc-300">{tx.id.slice(0, 8)}</Mono> та всі аналізи. Неможливо скасувати.
+=======
+                    Видаляється <Mono className="text-zinc-300">{tx.id.slice(0, 8)}</Mono> разом з усіма аналізами. Цю дію неможливо скасувати.
+>>>>>>> Stashed changes
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -650,11 +809,19 @@ function TransactionsTab() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {[
+<<<<<<< Updated upstream
             { label: 'Всього',      val: stats.total,                   cls: 'text-zinc-100' },
             { label: 'Схвалено',    val: stats.approved,                cls: 'text-emerald-400' },
             { label: 'Заблоковано', val: stats.blocked,                 cls: 'text-red-400' },
             { label: 'Очікує',      val: stats.pending,                 cls: 'text-zinc-400' },
             { label: 'Сер. ризик',  val: `${stats.avgRisk.toFixed(1)}`, cls: 'text-amber-400' },
+=======
+            { label: 'Усього',       val: stats.total,                   cls: 'text-zinc-100' },
+            { label: 'Підтверджено', val: stats.approved,                cls: 'text-emerald-400' },
+            { label: 'Заблоковано',  val: stats.blocked,                 cls: 'text-red-400' },
+            { label: 'Очікує',       val: stats.pending,                 cls: 'text-zinc-400' },
+            { label: 'Серед. ризик', val: `${stats.avgRisk.toFixed(1)}`, cls: 'text-amber-400' },
+>>>>>>> Stashed changes
           ].map(({ label, val, cls }) => (
             <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
               <Mono className="uppercase tracking-wider block mb-1">{label}</Mono>
@@ -666,7 +833,11 @@ function TransactionsTab() {
 
       <SectionHeader
         title="Транзакції"
+<<<<<<< Updated upstream
         sub={data ? `${data.total} всього · клікніть на рядок для AI аналізу` : ''}
+=======
+        sub={data ? `${data.total} всього · клацніть рядок, щоб розгорнути аналіз` : ''}
+>>>>>>> Stashed changes
         action={<CreateTxDialog onCreated={() => refetch()} />}
       />
 
@@ -689,7 +860,11 @@ function TransactionsTab() {
             )) : !data?.items.length ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-16 font-mono text-zinc-700 text-xs">
+<<<<<<< Updated upstream
                   Немає транзакцій. Створіть першу.
+=======
+                  Транзакцій немає. Створіть першу, щоб почати.
+>>>>>>> Stashed changes
                 </TableCell>
               </TableRow>
             ) : (
@@ -729,8 +904,13 @@ function RulesTab() {
   return (
     <div className="space-y-4">
       <SectionHeader
+<<<<<<< Updated upstream
         title="Правила шахрайства"
         sub={`${rules.length} правил · передаються Claude AI при кожному аналізі`}
+=======
+        title="Правила виявлення шахрайства"
+        sub={`${rules.length} правил · застосовуються до кожного аналізу`}
+>>>>>>> Stashed changes
         action={
           <Button size="sm" onClick={() => setShowCreate((p) => !p)}
             className="bg-blue-800 hover:bg-blue-700 text-white font-mono h-8 text-xs">
@@ -746,11 +926,15 @@ function RulesTab() {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Назва">
                 <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+<<<<<<< Updated upstream
                   className="bg-zinc-900 border-zinc-700 h-8 text-sm" placeholder="Висока сума CNP" />
+=======
+                  className="bg-zinc-900 border-zinc-700 h-8 text-sm" placeholder="Наприклад: Висока сума CNP" />
+>>>>>>> Stashed changes
               </Field>
               <Field label="Дія">
                 <Sel value={form.action} onValueChange={(v) => setForm((p) => ({ ...p, action: v as RuleAction }))}>
-                  {(['flag','block','review','approve','notify'] as RuleAction[]).map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  {(['flag','block','review','approve','notify'] as RuleAction[]).map((a) => <SelectItem key={a} value={a}>{ACTION_LABEL[a]}</SelectItem>)}
                 </Sel>
               </Field>
               <Field label="Опис">
@@ -762,7 +946,11 @@ function RulesTab() {
                   onChange={(e) => setForm((p) => ({ ...p, riskScoreImpact: parseInt(e.target.value, 10) }))}
                   className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" />
               </Field>
+<<<<<<< Updated upstream
               <Field label="Пріоритет (менше = перший)">
+=======
+              <Field label="Пріоритет (менше = вище)">
+>>>>>>> Stashed changes
                 <Input type="number" min={1} max={1000} value={form.priority}
                   onChange={(e) => setForm((p) => ({ ...p, priority: parseInt(e.target.value, 10) }))}
                   className="bg-zinc-900 border-zinc-700 font-mono h-8 text-sm" />
@@ -783,7 +971,11 @@ function RulesTab() {
               <Button size="sm" variant="ghost" onClick={() => setShowCreate(false)} className="text-zinc-500 h-8">Скасувати</Button>
               <Button size="sm" onClick={() => create(form)} disabled={creating || !form.name}
                 className="bg-blue-800 hover:bg-blue-700 text-white font-mono h-8 text-xs">
+<<<<<<< Updated upstream
                 {creating ? 'Збереження…' : 'Зберегти'}
+=======
+                {creating ? 'Збереження…' : 'Зберегти правило'}
+>>>>>>> Stashed changes
               </Button>
             </div>
           </CardContent>
@@ -794,7 +986,11 @@ function RulesTab() {
         {loading ? Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-20 bg-zinc-900 rounded-lg" />) :
          rules.length === 0 ? (
           <div className="text-center py-16 text-zinc-700 font-mono text-xs">
+<<<<<<< Updated upstream
             Немає правил. Правила передаються Claude AI при кожному аналізі транзакцій.
+=======
+            Правил немає. Правила застосовуються до кожного аналізу транзакції.
+>>>>>>> Stashed changes
           </div>
         ) : (
           rules.map((r) => (
@@ -804,10 +1000,10 @@ function RulesTab() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="text-sm font-medium text-zinc-100">{r.name}</span>
-                      <Badge className={`text-xs border font-mono ${ACTION_CLS[r.action]}`}>{r.action}</Badge>
-                      <Mono>priority:{r.priority}</Mono>
+                      <Badge className={`text-xs border font-mono ${ACTION_CLS[r.action]}`}>{ACTION_LABEL[r.action]}</Badge>
+                      <Mono>пріоритет:{r.priority}</Mono>
                       <Mono className={r.riskScoreImpact > 0 ? 'text-red-400' : 'text-emerald-400'}>
-                        impact:{r.riskScoreImpact > 0 ? '+' : ''}{r.riskScoreImpact}
+                        вплив:{r.riskScoreImpact > 0 ? '+' : ''}{r.riskScoreImpact}
                       </Mono>
                     </div>
                     <p className="text-xs text-zinc-500 mb-2">{r.description}</p>
@@ -1054,14 +1250,18 @@ function ReportsTab() {
   const [showForm,      setShowForm]        = useState(false);
   const [viewReport,    setViewReport]      = useState<ReportResponse | null>(null);
   const [form, setForm]                     = useState<GenerateReportDto>({
-    name: 'Weekly Fraud Summary', type: 'fraud_summary', period: 'weekly',
+    name: 'Тижневе зведення шахрайства', type: 'fraud_summary', period: 'weekly',
   });
 
   return (
     <div className="space-y-4">
       <SectionHeader
         title="Звіти"
+<<<<<<< Updated upstream
         sub="Зведення шахрайства, обсяги, розподіл ризиків, продуктивність AI"
+=======
+        sub="Зведення шахрайства, обсяг, розподіл ризиків, продуктивність моделей"
+>>>>>>> Stashed changes
         action={
           <Button size="sm" onClick={() => setShowForm((p) => !p)}
             className="bg-purple-900 hover:bg-purple-800 text-white font-mono h-8 text-xs">
@@ -1073,7 +1273,11 @@ function ReportsTab() {
       {showForm && (
         <Card className="bg-zinc-950 border-zinc-800 border-dashed">
           <CardContent className="p-4 space-y-3">
+<<<<<<< Updated upstream
             <Mono className="uppercase tracking-wider text-purple-400 block">Генерація звіту</Mono>
+=======
+            <Mono className="uppercase tracking-wider text-purple-400 block">Згенерувати звіт</Mono>
+>>>>>>> Stashed changes
             <div className="grid grid-cols-3 gap-3">
               <Field label="Назва">
                 <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
@@ -1082,14 +1286,14 @@ function ReportsTab() {
               <Field label="Тип">
                 <Sel value={form.type} onValueChange={(v) => setForm((p) => ({ ...p, type: v as ReportType }))}>
                   {(['fraud_summary','transaction_volume','risk_distribution','rule_effectiveness','ai_performance'] as ReportType[]).map((t) => (
-                    <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>
+                    <SelectItem key={t} value={t}>{REPORT_TYPE_LABEL[t]}</SelectItem>
                   ))}
                 </Sel>
               </Field>
               <Field label="Період">
                 <Sel value={form.period} onValueChange={(v) => setForm((p) => ({ ...p, period: v as ReportPeriod }))}>
                   {(['daily','weekly','monthly','custom'] as ReportPeriod[]).map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                    <SelectItem key={p} value={p}>{PERIOD_LABEL[p]}</SelectItem>
                   ))}
                 </Sel>
               </Field>
@@ -1115,6 +1319,7 @@ function ReportsTab() {
          reports.length === 0 ? (
           <div className="text-center py-16 text-zinc-700 font-mono text-xs">Звітів ще немає.</div>
         ) : (
+<<<<<<< Updated upstream
           reports.map((rp) => (
             <Card key={rp.id} className="bg-zinc-950 border-zinc-800">
               <CardContent className="p-4 flex items-center justify-between">
@@ -1142,6 +1347,34 @@ function ReportsTab() {
               </CardContent>
             </Card>
           ))
+=======
+          reports.map((r: unknown) => {
+            const rp = r as { id: string; name: string; type: ReportType; period: ReportPeriod; generatedAt: string };
+            return (
+              <Card key={rp.id} className="bg-zinc-950 border-zinc-800">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-zinc-100">{rp.name}</span>
+                      <Mono className={REPORT_TYPE_CLS[rp.type]}>{REPORT_TYPE_LABEL[rp.type]}</Mono>
+                      <Mono className="border border-zinc-800 rounded px-1">{PERIOD_LABEL[rp.period]}</Mono>
+                    </div>
+                    <Mono className="mt-0.5">{fmtAgo(rp.generatedAt)}</Mono>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" className="text-zinc-400 hover:text-zinc-200 h-7 font-mono text-xs">
+                      Переглянути →
+                    </Button>
+                    <DeleteDialog
+                      name={rp.name}
+                      onDelete={() => reportsApi.remove(mkReportId(rp.id)).then(() => refetch())}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+>>>>>>> Stashed changes
         )}
       </div>
 
@@ -1441,23 +1674,35 @@ export default function App() {
             </div>
             <span className="font-mono font-bold text-zinc-100 tracking-tighter text-sm">FINGUARD</span>
             <Separator orientation="vertical" className="h-4 bg-zinc-800" />
+<<<<<<< Updated upstream
             <Mono className="text-zinc-700">Система виявлення шахрайства AI</Mono>
             <div className="ml-auto flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <Mono className="text-zinc-500">Claude AI · Активно</Mono>
+=======
+            <Mono className="text-zinc-700">Виявлення шахрайства · LogReg + Keras NN · Kaggle ULB</Mono>
+            <div className="ml-auto flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <Mono className="text-zinc-500">Шлюз → finguard-ml</Mono>
+>>>>>>> Stashed changes
             </div>
           </div>
         </header>
 
         {/* Main */}
         <main className="max-w-7xl mx-auto px-4 py-6">
-          <Tabs defaultValue="transactions">
+          <Tabs defaultValue="dashboard">
             <TabsList className="bg-zinc-900 border border-zinc-800 mb-6 h-9">
               {[
+<<<<<<< Updated upstream
                 { value: 'transactions', label: 'Транзакції' },
                 { value: 'rules',        label: 'Правила' },
                 { value: 'reports',      label: 'Звіти' },
                 { value: 'dataset',      label: 'Датасет ULB' },
+=======
+                { value: 'dashboard', label: 'Панель' },
+                { value: 'analyzer',  label: 'Аналізатор' },
+>>>>>>> Stashed changes
               ].map(({ value, label }) => (
                 <TabsTrigger key={value} value={value}
                   className="font-mono text-xs h-7 data-[state=active]:bg-zinc-950 data-[state=active]:text-zinc-100 text-zinc-500">
@@ -1466,10 +1711,15 @@ export default function App() {
               ))}
             </TabsList>
 
+<<<<<<< Updated upstream
             <TabsContent value="transactions"><TransactionsTab /></TabsContent>
             <TabsContent value="rules"><RulesTab /></TabsContent>
             <TabsContent value="reports"><ReportsTab /></TabsContent>
             <TabsContent value="dataset"><DatasetTab /></TabsContent>
+=======
+            <TabsContent value="dashboard"><Dashboard /></TabsContent>
+            <TabsContent value="analyzer"><Analyzer /></TabsContent>
+>>>>>>> Stashed changes
           </Tabs>
         </main>
       </div>

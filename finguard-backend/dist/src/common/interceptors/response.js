@@ -8,7 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ResponseIntercaptor = void 0;
 const common_1 = require("@nestjs/common");
-const rxjs_1 = require("rxjs");
 const operators_1 = require("rxjs/operators");
 let ResponseIntercaptor = class ResponseIntercaptor {
     intercept(_ctx, next) {
@@ -16,6 +15,7 @@ let ResponseIntercaptor = class ResponseIntercaptor {
             success: true,
             data,
             timestamp: new Date().toISOString()
+<<<<<<< Updated upstream
         })), (0, operators_1.catchError)((err) => {
             const status = err instanceof common_1.HttpException ? err.getStatus() : 500;
             const code = common_1.HttpStatus[status] ?? 'INTERNAL_ERROR';
@@ -24,6 +24,9 @@ let ResponseIntercaptor = class ResponseIntercaptor {
                 : err instanceof Error ? err.message : 'Unknown error';
             return (0, rxjs_1.throwError)(() => new common_1.HttpException({ success: false, error: { code, message }, timestamp: new Date().toISOString() }, status));
         }));
+=======
+        })));
+>>>>>>> Stashed changes
     }
 };
 exports.ResponseIntercaptor = ResponseIntercaptor;

@@ -46,6 +46,7 @@ export class TransactionsService {
 
     // Конвертує сутність БД у payload для AI-сервісу
     private entityToPayLoad(tx: TransactionEntity): AnyTransaction {
+        const extras = (tx.extraFields ?? {}) as Record<string, unknown>;
         return {
             transactionId: tx.id,
             userId: tx.userId as ReturnType<typeof import('../../../shared/types')['mkUserId']>,
@@ -57,7 +58,10 @@ export class TransactionsService {
             description: tx.description ?? undefined,
             type: tx.type,
             channel: tx.channel,
-            ...((tx.extraFields as object) ?? {}),
+            ...extras,
+            // Preserve full extras under a stable key so the analysis service
+            // can locate the ML feature vector (extras.mlFeatures).
+            extraFields: extras,
         } as unknown as AnyTransaction
     }
 

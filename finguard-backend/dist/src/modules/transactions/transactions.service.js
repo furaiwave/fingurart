@@ -53,6 +53,7 @@ let TransactionsService = class TransactionsService {
         };
     }
     entityToPayLoad(tx) {
+        const extras = (tx.extraFields ?? {});
         return {
             transactionId: tx.id,
             userId: tx.userId,
@@ -64,7 +65,8 @@ let TransactionsService = class TransactionsService {
             description: tx.description ?? undefined,
             type: tx.type,
             channel: tx.channel,
-            ...(tx.extraFields ?? {}),
+            ...extras,
+            extraFields: extras,
         };
     }
     async create(dto) {

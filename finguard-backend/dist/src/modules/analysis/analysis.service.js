@@ -25,8 +25,10 @@ const types_1 = require("../../../shared/types");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const analysis_1 = require("../../common/interceptors/entities/analysis");
+const ml_service_1 = require("../ml/ml.service");
+const ML_FEATURE_KEYS = [...Array.from({ length: 28 }, (_, i) => `V${i + 1}`), 'Amount', 'Time'];
 function isvalidClaudeSchema(data) {
-    if (typeof data != 'object' || data === null)
+    if (typeof data !== 'object' || data === null)
         return false;
     const d = data;
     return (typeof d['riskScore'] === 'number' &&
@@ -41,24 +43,87 @@ function isvalidClaudeSchema(data) {
 let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
     config;
     repo;
+    ml;
     logger = new common_1.Logger(AiAnalysisService_1.name);
     client;
-    modelVersion = (0, types_1.mkModelVersion)('claude-sonnet-4-5');
-    constructor(config, repo) {
+    anthropicEnabled;
+    constructor(config, repo, ml) {
         this.config = config;
         this.repo = repo;
-        this.client = new sdk_1.default({
-            apiKey: this.config.getOrThrow('ANTHROPIC_API_KEY')
-        });
+        this.ml = ml;
+        const key = this.config.get('ANTHROPIC_API_KEY');
+        this.anthropicEnabled = !!key;
+        this.client = key ? new sdk_1.default({ apiKey: key }) : null;
     }
     async analyze(transaction, activeRules) {
         const startMs = Date.now();
         const ruleDelta = this.applyRules(transaction, activeRules);
+        const mlFeatures = this.extractMlFeatures(transaction);
+        if (mlFeatures) {
+            const result = await this.analyzeWithMl(transaction, mlFeatures, ruleDelta, startMs);
+            return result;
+        }
+        if (!this.anthropicEnabled || !this.client) {
+            this.logger.warn(`Tx ${transaction.transactionId}: no ML features in extraFields and Anthropic disabled — using deterministic fallback.`);
+            return this.analyzeWithFallback(transaction, ruleDelta, startMs);
+        }
+        return this.analyzeWithClaude(transaction, activeRules, ruleDelta, startMs);
+    }
+    async analyzeWithMl(transaction, features, ruleDelta, startMs) {
+        const raw = await this.ml.predict(features);
+        const scoring = this.ml.toScoring(features, raw);
+        const finalScore = (0, types_1.mkRiskScore)(scoring.riskScore + ruleDelta);
+        const riskLevel = (0, types_1.scoreToRiskLevel)(finalScore);
+        const verdict = this.deriveVerdictFromScore(finalScore);
+        const decision = this.buildDecision(verdict, riskLevel, scoring.signals);
+        const processingTimeMs = Date.now() - startMs;
+        const entity = this.repo.create({
+            id: (0, types_1.mkAnalysisId)((0, uuid_1.v4)()),
+            transactionId: transaction.transactionId,
+            modelVersion: (0, types_1.mkModelVersion)(scoring.modelVersion),
+            riskScore: finalScore,
+            confidence: scoring.confidence,
+            verdict: decision.verdict,
+            riskLevel: decision.riskLevel,
+            requiresReview: decision.requiresReview,
+            signals: scoring.signals,
+            reasoning: ruleDelta !== 0
+                ? `${scoring.reasoning} Rule engine delta: ${ruleDelta > 0 ? '+' : ''}${ruleDelta}.`
+                : scoring.reasoning,
+            recommendations: scoring.recommendations,
+            processingTimeMs,
+            reviewDeadlineMs: decision.reviewDeadlineMs,
+            blockedReason: decision.blockedReason,
+            analyzedAt: new Date(),
+        });
+        const saved = await this.repo.save(entity);
+        return {
+            analysisId: saved.id,
+            transactionId: transaction.transactionId,
+            modelVersion: saved.modelVersion,
+            riskScore: finalScore,
+            confidence: scoring.confidence,
+            decision,
+            signals: scoring.signals,
+            reasoning: saved.reasoning,
+            recommendations: scoring.recommendations,
+            processingTimeMs,
+            analyzedAt: saved.analyzedAt,
+        };
+    }
+    async analyzeWithClaude(transaction, activeRules, ruleDelta, startMs) {
+        if (!this.client)
+            throw new Error('Anthropic client not configured');
         const message = await this.client.messages.create({
             model: 'claude-haiku-4-5',
             max_tokens: 1500,
             system: this.systemPrompt(),
-            messages: [{ role: 'user', content: this.buildPrompt(transaction, activeRules, ruleDelta) }]
+            messages: [
+                {
+                    role: 'user',
+                    content: this.buildPrompt(transaction, activeRules, ruleDelta),
+                },
+            ],
         });
         const rawText = message.content
             .filter((b) => b.type === 'text')
@@ -67,16 +132,17 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
         const parsed = this.parseResponse(rawText);
         const finalScore = (0, types_1.mkRiskScore)(parsed.riskScore + ruleDelta);
         const riskLevel = (0, types_1.scoreToRiskLevel)(finalScore);
-        const decision = this.buildDecision(parsed, finalScore, riskLevel);
+        const verdict = this.deriveVerdictFromScore(finalScore);
         const signals = parsed.signals.map((s) => ({
             ...s,
-            weight: (0, types_1.mkConfidence)(Math.min(1, Math.max(0, s.weight)))
+            weight: (0, types_1.mkConfidence)(Math.min(1, Math.max(0, s.weight))),
         }));
+        const decision = this.buildDecision(verdict, riskLevel, signals, parsed.blockedReason);
         const processingTimeMs = Date.now() - startMs;
         const entity = this.repo.create({
             id: (0, types_1.mkAnalysisId)((0, uuid_1.v4)()),
             transactionId: transaction.transactionId,
-            modelVersion: this.modelVersion,
+            modelVersion: (0, types_1.mkModelVersion)('claude-haiku-4-5'),
             riskScore: finalScore,
             confidence: (0, types_1.mkConfidence)(parsed.confidence),
             verdict: decision.verdict,
@@ -94,14 +160,53 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
         return {
             analysisId: saved.id,
             transactionId: transaction.transactionId,
-            modelVersion: this.modelVersion,
+            modelVersion: saved.modelVersion,
             riskScore: finalScore,
             confidence: (0, types_1.mkConfidence)(parsed.confidence),
-            decision: decision,
-            signals: signals,
+            decision,
+            signals,
             reasoning: parsed.reasoning,
             recommendations: parsed.recommendations,
-            processingTimeMs: processingTimeMs,
+            processingTimeMs,
+            analyzedAt: saved.analyzedAt,
+        };
+    }
+    async analyzeWithFallback(transaction, ruleDelta, startMs) {
+        const baseScore = (0, types_1.mkRiskScore)(40 + ruleDelta);
+        const riskLevel = (0, types_1.scoreToRiskLevel)(baseScore);
+        const verdict = this.deriveVerdictFromScore(baseScore);
+        const decision = this.buildDecision(verdict, riskLevel, []);
+        const processingTimeMs = Date.now() - startMs;
+        const entity = this.repo.create({
+            id: (0, types_1.mkAnalysisId)((0, uuid_1.v4)()),
+            transactionId: transaction.transactionId,
+            modelVersion: (0, types_1.mkModelVersion)('finguard-fallback'),
+            riskScore: baseScore,
+            confidence: (0, types_1.mkConfidence)(0.5),
+            verdict: decision.verdict,
+            riskLevel: decision.riskLevel,
+            requiresReview: decision.requiresReview,
+            signals: [],
+            reasoning: 'No mlFeatures in extraFields and AI provider disabled. ' +
+                'Provide V1..V28, Amount, Time in extraFields.mlFeatures to invoke the ML model.',
+            recommendations: ['Attach ML feature vector to enable scoring.'],
+            processingTimeMs,
+            reviewDeadlineMs: decision.reviewDeadlineMs,
+            blockedReason: decision.blockedReason,
+            analyzedAt: new Date(),
+        });
+        const saved = await this.repo.save(entity);
+        return {
+            analysisId: saved.id,
+            transactionId: transaction.transactionId,
+            modelVersion: saved.modelVersion,
+            riskScore: baseScore,
+            confidence: (0, types_1.mkConfidence)(0.5),
+            decision,
+            signals: [],
+            reasoning: saved.reasoning,
+            recommendations: saved.recommendations,
+            processingTimeMs,
             analyzedAt: saved.analyzedAt,
         };
     }
@@ -124,6 +229,23 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
             analyzeAt: a.analyzedAt.toISOString(),
         };
     }
+    extractMlFeatures(tx) {
+        const extras = tx.extraFields;
+        const candidate = extras?.['mlFeatures'] ??
+            extras?.['ml_features'] ??
+            extras;
+        if (!candidate)
+            return null;
+        const features = {};
+        for (const k of ML_FEATURE_KEYS) {
+            const raw = candidate[k];
+            const num = typeof raw === 'number' ? raw : Number(raw);
+            if (!Number.isFinite(num))
+                return null;
+            features[k] = num;
+        }
+        return features;
+    }
     applyRules(tx, rules) {
         let delta = 0;
         const txFlat = tx;
@@ -135,22 +257,31 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
                 if (val === undefined)
                     return false;
                 switch (c.operator) {
-                    case 'gt': return Number(val) > Number(c.value);
-                    case 'gte': return Number(val) >= Number(c.value);
-                    case 'lt': return Number(val) < Number(c.value);
-                    case 'lte': return Number(val) <= Number(c.value);
-                    case 'eq': return String(val) === String(c.value);
-                    case 'neq': return String(val) !== String(c.value);
-                    case 'contains': return String(val).includes(String(c.value));
-                    case 'not_contains': return !String(val).includes(String(c.value));
-                    case 'in': return Array.isArray(c.value) && c.value.includes(val);
-                    case 'not_in': return Array.isArray(c.value) && !c.value.includes(val);
-                    default: return false;
+                    case 'gt':
+                        return Number(val) > Number(c.value);
+                    case 'gte':
+                        return Number(val) >= Number(c.value);
+                    case 'lt':
+                        return Number(val) < Number(c.value);
+                    case 'lte':
+                        return Number(val) <= Number(c.value);
+                    case 'eq':
+                        return String(val) === String(c.value);
+                    case 'neq':
+                        return String(val) !== String(c.value);
+                    case 'contains':
+                        return String(val).includes(String(c.value));
+                    case 'not_contains':
+                        return !String(val).includes(String(c.value));
+                    case 'in':
+                        return Array.isArray(c.value) && c.value.includes(val);
+                    case 'not_in':
+                        return Array.isArray(c.value) && !c.value.includes(val);
+                    default:
+                        return false;
                 }
             });
-            const triggered = rule.conditionLogic === 'AND'
-                ? results.every(Boolean)
-                : results.some(Boolean);
+            const triggered = rule.conditionLogic === 'AND' ? results.every(Boolean) : results.some(Boolean);
             if (triggered) {
                 this.logger.debug(`Rule "${rule.name}" triggered → delta ${rule.riskScoreImpact}`);
                 delta += rule.riskScoreImpact;
@@ -158,23 +289,18 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
         }
         return Math.max(-50, Math.min(50, delta));
     }
-    buildDecision(parsed, score, riskLevel) {
-        const reviewDeadlineMs = parsed.reviewDeadlineHours
-            ? Date.now() + parsed.reviewDeadlineHours * 3_600_000
-            : null;
-        const primarySignal = parsed.signals[0] ?? null;
-        const toSignal = (s) => s ? { ...s, weight: (0, types_1.mkConfidence)(s.weight) } : null;
-        const effectiveVerdict = score <= 30 ? 'approved'
-            : score <= 60 ? 'approved'
-                : score <= 85 ? 'approved_with_review'
-                    : 'blocked';
-        const ORDER = {
-            approved: 0, approved_with_review: 1, pending_manual_review: 2, blocked: 3
-        };
-        const finalVerdict = ORDER[parsed.verdict] >= ORDER[effectiveVerdict]
-            ? parsed.verdict
-            : effectiveVerdict;
-        switch (finalVerdict) {
+    deriveVerdictFromScore(score) {
+        if (score <= 30)
+            return 'approved';
+        if (score <= 60)
+            return 'approved_with_review';
+        if (score <= 85)
+            return 'approved_with_review';
+        return 'blocked';
+    }
+    buildDecision(verdict, riskLevel, signals, explicitBlockedReason) {
+        const reviewDeadlineMs = Date.now() + 24 * 3_600_000;
+        switch (verdict) {
             case 'approved':
                 return {
                     verdict: 'approved',
@@ -189,33 +315,40 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
                     riskLevel: riskLevel,
                     requiresReview: true,
                     blockedReason: null,
-                    reviewDeadlineMs: reviewDeadlineMs ?? Date.now() + 86_400_400,
+                    reviewDeadlineMs,
                 };
-            case 'blocked':
+            case 'blocked': {
+                const blocked = explicitBlockedReason
+                    ? {
+                        ...explicitBlockedReason,
+                        weight: (0, types_1.mkConfidence)(Math.min(1, Math.max(0, explicitBlockedReason.weight))),
+                    }
+                    : signals[0] ?? {
+                        category: 'ai_detected',
+                        code: 'HIGH_RISK',
+                        description: 'Risk exceeds blocking threshold',
+                        weight: (0, types_1.mkConfidence)(1),
+                    };
                 return {
                     verdict: 'blocked',
                     riskLevel: riskLevel,
                     requiresReview: false,
-                    blockedReason: toSignal(parsed.blockedReason) ?? (primarySignal)
-                        ? { ...primarySignal, weight: (0, types_1.mkConfidence)(primarySignal.weight) }
-                        : {
-                            category: 'ai_detected',
-                            code: 'HIGH_RISK',
-                            description: 'Risk exceeds critical threshold', weight: (0, types_1.mkConfidence)(1),
-                        },
-                    reviewDeadlineMs: null
+                    blockedReason: blocked,
+                    reviewDeadlineMs: null,
                 };
-            case 'pending_manual_review':
+            }
+            default:
                 return {
                     verdict: 'pending_manual_review',
-                    riskLevel: riskLevel,
+                    riskLevel,
                     requiresReview: true,
                     blockedReason: null,
-                    reviewDeadlineMs: reviewDeadlineMs ?? Date.now() + 86_400_000,
+                    reviewDeadlineMs,
                 };
         }
     }
     systemPrompt() {
+<<<<<<< Updated upstream
         return `You are an expert financial fraud detection AI.
         Analyze transactions and respond ONLY with a JSON code block.
         IMPORTANT: All text fields (reasoning, recommendations, signals descriptions, blockedReason description) MUST be written in Ukrainian language.
@@ -239,16 +372,37 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
 
         Risk thresholds: 0-30=low/approved, 31-60=medium, 61-85=high/review, 86-100=critical/block
         Conservative bias: false negatives (missed fraud) cost more than false positives.`;
+=======
+        return `You are an expert financial fraud detection AI. Analyze transactions and respond ONLY with a JSON code block.
+Required schema:
+\`\`\`json
+{
+"riskScore": <integer 0-100>,
+"confidence": <float 0.0-1.0>,
+"verdict": <"approved"|"approved_with_review"|"blocked"|"pending_manual_review">,
+"riskLevel": <"low"|"medium"|"high"|"critical">,
+"requiresReview": <boolean>,
+"reviewDeadlineHours": <number|null>,
+"signals": [{"category": <string>, "code": <string>, "description": <string>, "weight": <float>}],
+"reasoning": <string 2-4 sentences>,
+"recommendations": [<string>],
+"blockedReason": <signal object|null>
+}
+\`\`\`
+Signal categories: velocity, geolocation, device_fingerprint, behavioral, amount_anomaly, blacklist, pattern_match, ai_detected
+Risk thresholds: 0-30=low/approved, 31-60=medium, 61-85=high/review, 86-100=critical/block
+Conservative bias: false negatives (missed fraud) cost more than false positives.`;
+>>>>>>> Stashed changes
     }
     buildPrompt(tx, rules, ruleDelta) {
-        const txData = JSON.stringify({
-            ...tx,
-            amountFormatted: `${(tx.amount / 100).toFixed(2)} ${tx.currency}`,
-        }, null, 2);
+        const txData = JSON.stringify({ ...tx, amountFormatted: `${(tx.amount / 100).toFixed(2)} ${tx.currency}` }, null, 2);
         const rulesText = rules.length > 0
-            ? rules.map((r) => `• ${r.name} [${r.action}] impact:${r.riskScoreImpact > 0 ? '+' : ''}${r.riskScoreImpact} — ${r.description}`).join('\n')
+            ? rules
+                .map((r) => `• ${r.name} [${r.action}] impact:${r.riskScoreImpact > 0 ? '+' : ''}${r.riskScoreImpact} — ${r.description}`)
+                .join('\n')
             : 'No custom rules configured.';
         return `## Transaction Data
+<<<<<<< Updated upstream
         \`\`\`json
         ${txData}
         \`\`\`
@@ -260,25 +414,37 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
         Rule delta applied: ${ruleDelta > 0 ? '+' : ''}${ruleDelta} points
         
         Analyze for fraud. Consider: amount anomalies, channel risk, authentication signals (3DS, PIN, CVV), behavioral patterns, rule triggers. Provide your JSON analysis. All text in Ukrainian.`;
+=======
+\`\`\`json
+${txData}
+\`\`\`
+
+## Active Fraud Rules
+${rulesText}
+
+## Rule Engine Pre-Score
+Rule delta applied: ${ruleDelta > 0 ? '+' : ''}${ruleDelta} points
+
+Analyze for fraud. Provide your JSON analysis.`;
+>>>>>>> Stashed changes
     }
     parseResponse(raw) {
-        const match = raw.match(/```json\s*([\s\S]*?)\s*```/) ??
-            raw.match(/\{[\s\S]*\}/);
+        const match = raw.match(/```json\s*([\s\S]*?)\s*```/) ?? raw.match(/\{[\s\S]*\}/);
         const jsonStr = match?.[1] ?? match?.[0] ?? '{}';
         try {
             const parsed = JSON.parse(jsonStr);
             if (!isvalidClaudeSchema(parsed)) {
                 this.logger.warn('Claude returned invalid schema, using fallback');
-                return this.fullbackSchema();
+                return this.fallbackSchema();
             }
             return parsed;
         }
         catch {
             this.logger.error('Failed to parse Claude response JSON');
-            return this.fullbackSchema();
+            return this.fallbackSchema();
         }
     }
-    fullbackSchema() {
+    fallbackSchema() {
         return {
             riskScore: 50,
             confidence: 0.5,
@@ -287,7 +453,7 @@ let AiAnalysisService = AiAnalysisService_1 = class AiAnalysisService {
             requiresReview: true,
             reviewDeadlineHours: 48,
             signals: [],
-            reasoning: 'Analysis could not be completed. Transaction flagged for manual review',
+            reasoning: 'Analysis could not be completed. Transaction flagged for manual review.',
             recommendations: ['Perform manual review of this transaction'],
             blockedReason: null,
         };
@@ -298,6 +464,7 @@ exports.AiAnalysisService = AiAnalysisService = AiAnalysisService_1 = __decorate
     (0, common_1.Injectable)(),
     __param(1, (0, typeorm_1.InjectRepository)(analysis_1.AnalysisEntity)),
     __metadata("design:paramtypes", [config_1.ConfigService,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        ml_service_1.MlService])
 ], AiAnalysisService);
 //# sourceMappingURL=analysis.service.js.map

@@ -10,7 +10,12 @@ import { ReportsService } from './modules/reports/reports.service';
 import { AiAnalysisService } from './modules/analysis/analysis.service';
 import { TransactionController, RuleContoller, ReportController, DatasetController } from './common/controllers';
 import { TransactionsService } from './modules/transactions/transactions.service';
+<<<<<<< Updated upstream
 import { DatasetAnalysisService } from './modules/dataset/dataset.service';
+=======
+import { MlService } from './modules/ml/ml.service';
+import { MlController } from './modules/ml/ml.controller';
+>>>>>>> Stashed changes
 
 @Module({
   imports: [
@@ -35,7 +40,12 @@ import { DatasetAnalysisService } from './modules/dataset/dataset.service';
       TransactionEntity, AnalysisEntity, RuleEntity, ReportEntity
     ])
   ],
+<<<<<<< Updated upstream
   controllers: [TransactionController, RuleContoller, ReportController, DatasetController],
   providers: [TransactionsService, RulesService, ReportsService, AiAnalysisService, DatasetAnalysisService],
+=======
+  controllers: [TransactionController, RuleContoller, ReportController, MlController],
+  providers: [TransactionsService, RulesService, ReportsService, AiAnalysisService, MlService],
+>>>>>>> Stashed changes
 })
 export class AppModule {}

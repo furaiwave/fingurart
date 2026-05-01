@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; nb=json.load\\(open\\(r'c:/Users/User/Documents/GitHub/fingurart/Копія_записника__Практична_8_Прогнозування_проблем_серця_\\(Машинне_навчання\\)_ipynb_.ipynb', encoding='utf-8'\\)\\); cells=nb['cells']; print\\('TOTAL CELLS:', len\\(cells\\)\\); [print\\(f'--- CELL {i} [{c[\\\\\"cell_type\\\\\"]}] ---'\\); print\\(''.join\\(c['source']\\)[:1500]\\) for i,c in enumerate\\(cells\\)]\")",
+      "Bash(py --version)",
+      "Bash(where python *)",
+      "Bash(python _extract_nb.py)",
+      "Bash(awk '/^=== CELL/{p=1} p{if\\(/^data:image|^!\\\\[/\\){next} else print}' c:/Users/User/Documents/GitHub/fingurart/_nb_dump.txt)",
+      "Bash(python _extract_clean.py)",
+      "Bash(python -m venv .venv)",
+      "Bash(.venv/Scripts/python.exe -m pip install --upgrade pip)",
+      "Bash(.venv/Scripts/python.exe -m pip install -r requirements.txt)",
+      "Bash(tee /tmp/pip_install.log)",
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "Bash(.venv/Scripts/python.exe -c \"import app; print\\('imports OK'\\); print\\('routes:', [r.path for r in app.app.routes if hasattr\\(r, 'path'\\)]\\)\")",
+      "Bash(npm install *)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist /FI \"PID eq 8684\" /FO CSV)",
+      "PowerShell(Get-Process -Id 8684)",
+      "Bash(.venv/Scripts/python.exe -c \"import app; import train; print\\('imports OK'\\)\")",
+      "Bash(.venv/Scripts/python.exe -m py_compile train.py app.py)",
+      "Bash(curl -s http://127.0.0.1:8000/health)",
+      "Bash(curl -s http://127.0.0.1:3001/api/ml/health)",
+      "Bash(curl -s http://127.0.0.1:3001/api/ml/dataset/info)",
+      "Bash(curl -s http://127.0.0.1:3001/api/ml/retrain/status)",
+      "PowerShell(Get-Process -Id 30240, 20504 -ErrorAction SilentlyContinue | Format-Table Id, ProcessName, StartTime, @{N='Age';E={\\(Get-Date\\) - $_.StartTime}})"
+    ]
+  }
+}

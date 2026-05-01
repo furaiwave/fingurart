@@ -1,6 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { transactionsApi, rulesApi, reportsApi, ApiClientError } from '../lib/api';
+<<<<<<< Updated upstream
 import type { ReportResponse } from '../lib/api';
+=======
+import {
+  mlApi,
+  type MlFeatures,
+  type MlModelChoice,
+  type MlPredictResponse,
+  type TrainStatus,
+} from '../lib/ml';
+>>>>>>> Stashed changes
 import type { TransactionId, RuleId, ReportId } from '../../../finguard-backend/shared/types';
 import type { AnalysisResponseDto } from '../../../finguard-backend/src/common/dto/responseAnalysis'
 import type { CreateTransactionDto } from '../../../finguard-backend/src/common/dto/create'
@@ -232,4 +242,172 @@ export function useDeleteReport(onSuccess?: () => void) {
   }, []);
 
   return { remove, deletingId } as const;
+}
+
+// ─── ML ───────────────────────────────────────────────────────────────────────
+
+export function useMlHealth() {
+  const { state, refetch } = useFetch(() => mlApi.health());
+  return {
+    data:    state.status === 'success' ? state.data : null,
+    loading: state.status === 'loading',
+    error:   state.status === 'error'   ? state.message : null,
+    refetch,
+  } as const;
+}
+
+export function useMlMetrics() {
+  const { state, refetch } = useFetch(() => mlApi.metrics());
+  return {
+    data:    state.status === 'success' ? state.data : null,
+    loading: state.status === 'loading',
+    error:   state.status === 'error'   ? state.message : null,
+    refetch,
+  } as const;
+}
+
+export function useMlModelInfo() {
+  const { state, refetch } = useFetch(() => mlApi.modelInfo());
+  return {
+    data:    state.status === 'success' ? state.data : null,
+    loading: state.status === 'loading',
+    error:   state.status === 'error'   ? state.message : null,
+    refetch,
+  } as const;
+}
+
+export function useMlPredict() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [result, setResult]   = useState<MlPredictResponse | null>(null);
+
+  const predict = useCallback(
+    async (features: MlFeatures, opts?: { threshold?: number; model?: MlModelChoice }) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await mlApi.predict(features, opts);
+        setResult(res);
+        return res;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Prediction failed');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const reset = useCallback(() => { setResult(null); setError(null); }, []);
+
+  return { predict, result, loading, error, reset } as const;
+}
+
+export function useMlRetrain(onSuccess?: () => void) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+
+  const retrain = useCallback(async (skipNn = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await mlApi.retrain(skipNn);
+      onSuccess?.();
+      return r;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Retrain failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { retrain, loading, error } as const;
+}
+
+export function useDatasetInfo() {
+  const { state, refetch } = useFetch(() => mlApi.datasetInfo());
+  return {
+    data:    state.status === 'success' ? state.data : null,
+    loading: state.status === 'loading',
+    error:   state.status === 'error'   ? state.message : null,
+    refetch,
+  } as const;
+}
+
+export function useUploadDataset(onSuccess?: () => void) {
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  const upload = useCallback(async (file: File) => {
+    setLoading(true);
+    setError(null);
+    setProgress(0);
+    try {
+      const r = await mlApi.uploadDataset(file);
+      setProgress(100);
+      onSuccess?.();
+      return r;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { upload, loading, error, progress } as const;
+}
+
+/**
+ * Polls /ml/retrain/status while a job is running. Switches to a slower
+ * heartbeat once the job has finished (so the UI keeps reflecting the latest
+ * snapshot but doesn't burn cycles).
+ */
+export function useTrainStatus(autoStart = true) {
+  const [status, setStatus] = useState<TrainStatus | null>(null);
+  const [error,  setError]  = useState<string | null>(null);
+  const enabled = useRef(autoStart);
+
+  const fetchOnce = useCallback(async () => {
+    try {
+      const s = await mlApi.retrainStatus();
+      setStatus(s);
+      setError(null);
+      return s;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Status check failed');
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    enabled.current = autoStart;
+  }, [autoStart]);
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | null = null;
+
+    const tick = async () => {
+      if (!active || !enabled.current) return;
+      const s = await fetchOnce();
+      const delay = s?.status === 'running' ? 1500 : 5000;
+      timer = window.setTimeout(tick, delay);
+    };
+
+    void tick();
+
+    return () => {
+      active = false;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { status, error, refetch: fetchOnce } as const;
 }
